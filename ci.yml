@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# Cancel any in-progress run for the same branch when a new commit lands.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint, Test & Smoke (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install PyTorch (CPU only)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            --extra-index-url https://download.pytorch.org/whl/cpu \
+            torch==2.2.2
+
+      - name: Install project dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Cache Hugging Face models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ runner.os }}-hf-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-hf-
+
+      - name: Lint with flake8
+        run: |
+          # Fail on syntax errors and undefined names.
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Soft check: complexity + line length.
+          flake8 . --count --max-complexity=10 --max-line-length=100 --statistics
+
+      - name: Run tests (if /tests exists)
+        run: |
+          if [ -d "tests" ]; then
+            pytest tests -v
+          else
+            echo "No /tests directory found, skipping pytest."
+          fi
+
+      - name: Run summarizer smoke test
+        run: python summarizer.py
