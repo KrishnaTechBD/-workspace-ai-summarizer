@@ -1,6 +1,6 @@
 # Pinned dependencies for reproducible CPU-only installs.
 # Install with:  pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-transformers==4.38.2
+transformers==5.5.0
 torch==2.2.2
 numpy<2.0
 flake8==6.1.0
